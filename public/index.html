@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IronMat Gym — Session Booking</title>
+<style>
+:root {
+  --paper: #F1F5EC; --teal: #0D3B36; --teal-mid: #144F48;
+  --saffron: #D98F2B; --saffron-soft: #F3D9AE;
+  --sage: #6E8F6B; --ink: #16231D; --ink-soft: #4B5A50;
+  --brick: #B4472A; --line: rgba(22,35,29,0.14);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--paper); color: var(--ink); min-width: 360px; min-height: 100vh; }
+.serif { font-family: Georgia, serif; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: #fff; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.brand-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(155deg, var(--teal), var(--teal-mid)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; }
+.brand-name { font-size: 19px; font-weight: 700; color: var(--teal); }
+nav a, nav button { font-size: 13px; color: var(--ink-soft); text-decoration: none; border: 1px solid var(--line); padding: 7px 14px; border-radius: 20px; cursor: pointer; background: transparent; margin-left: 6px; }
+nav a.active { border-color: var(--saffron); background: var(--saffron-soft); color: var(--teal); font-weight: 600; }
+.container { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+.card { background: #fff; border-radius: 20px; padding: 26px; border: 1px solid var(--line); margin-bottom: 20px; box-shadow: 0 4px 12px rgba(13,59,54,0.05); }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; font-weight: 600; }
+.field input, .field select { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--line); font-size: 14px; background: var(--paper); }
+.btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+.btn-primary { background: var(--teal); color: #fff; }
+.btn-saffron { background: var(--saffron); color: #fff; }
+.btn-danger { background: var(--brick); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+.session-card { border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; background: #fff; display: flex; flex-direction: column; justify-content: space-between; }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-bottom: 8px; }
+.badge-avail { background: rgba(110, 143, 107, 0.15); color: var(--sage); }
+.badge-full { background: rgba(180, 71, 42, 0.12); color: var(--brick); }
+.code-display { font-family: monospace; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: var(--teal); background: var(--saffron-soft); padding: 8px; text-align: center; border-radius: 8px; margin: 10px 0; border: 1px dashed var(--saffron); }
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--teal); color: #fff; padding: 10px 22px; border-radius: 30px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 9999; }
+.toast.show { opacity: 1; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand" onclick="location.hash='#/sessions'">
+    <div class="brand-mark">IM</div>
+    <div><div class="brand-name serif">IronMat Gym</div><div style="font-size:11px;color:var(--ink-soft);">20-Mat Session Booking</div></div>
+  </div>
+  <nav>
+    <a href="#/sessions" id="nav-sessions">Sessions</a>
+    <a href="#/mine" id="nav-mine">My Bookings</a>
+    <a href="#/admin" id="nav-admin" class="hidden">Staff Station</a>
+    <button id="nav-logout" class="hidden" onclick="logout()">Sign Out</button>
+  </nav>
+</div>
+
+<main class="container">
+  <section id="view-auth" class="card" style="max-width: 400px; margin: 40px auto;">
+    <h2 class="serif" id="auth-title" style="color:var(--teal);margin-bottom:8px;">Member Sign In</h2>
+    <form onsubmit="handleAuth(event)">
+      <div class="field hidden" id="field-name"><label>Full Name</label><input type="text" id="auth-name" placeholder="Adit Gupta"></div>
+      <div class="field"><label>Email Address</label><input type="email" id="auth-email" required placeholder="alice@test.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="auth-password" required placeholder="••••••••"></div>
+      <button type="submit" id="auth-btn" class="btn btn-primary">Sign In →</button>
+    </form>
+    <div style="text-align: center; margin-top: 14px;"><a href="#" id="auth-toggle" style="font-size: 12px; color: var(--ink-soft);" onclick="toggleAuth(event)">Need an account? Register here</a></div>
+  </section>
+
+  <section id="view-sessions" class="hidden">
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <div><h2 class="serif" style="color:var(--teal);">Available Sessions</h2><p style="font-size:13px;color:var(--ink-soft);">20 Mats capacity per hour. Auto-promoted waitlist.</p></div>
+      <div style="display:flex;align-items:center;gap:8px;"><label style="font-size:13px;font-weight:600;">Date:</label><input type="date" id="filter-date" onchange="loadSessions()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--line);"></div>
+    </div>
+    <div id="sessions-grid" class="grid"></div>
+  </section>
+
+  <section id="view-mine" class="hidden">
+    <h2 class="serif" style="color:var(--teal);margin-bottom:12px;">My Confirmed Bookings</h2>
+    <div id="mine-bookings" class="grid" style="margin-bottom: 24px;"></div>
+    <h2 class="serif" style="color:var(--teal);margin-bottom:12px;">Waitlist Queue</h2>
+    <div id="mine-waitlists" class="grid"></div>
+  </section>
+
+  <section id="view-admin" class="hidden">
+    <div class="card">
+      <h2 class="serif" style="color:var(--teal);margin-bottom:8px;">Door Check-In</h2>
+      <form onsubmit="handleCheckin(event)" style="display: flex; gap: 10px;">
+        <input type="text" id="checkin-code" maxlength="6" placeholder="e.g. 7XKP2Q" required style="letter-spacing: 3px; font-size: 18px; text-transform: uppercase; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); flex: 1;">
+        <button type="submit" class="btn btn-primary" style="width: auto; padding: 0 20px;">Verify & Check In</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2 class="serif" style="color:var(--teal);margin-bottom:8px;">Create Session</h2>
+      <form onsubmit="handleCreateSession(event)" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <input type="date" id="new-date" required style="flex:1;min-width:140px;padding:10px;border-radius:8px;border:1px solid var(--line);">
+        <select id="new-hour" required style="flex:1;min-width:120px;padding:10px;border-radius:8px;border:1px solid var(--line);">
+          <option value="6">06:00 AM</option><option value="7">07:00 AM</option><option value="8">08:00 AM</option><option value="9">09:00 AM</option><option value="17">05:00 PM</option><option value="18">06:00 PM</option>
+        </select>
+        <button type="submit" class="btn btn-primary" style="width: auto; padding: 0 20px;">Create</button>
+      </form>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+let token = localStorage.getItem('token');
+let user = JSON.parse(localStorage.getItem('user') || 'null');
+let isRegister = false;
+let pollTimer = null;
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function toggleAuth(e) {
+  e.preventDefault(); isRegister = !isRegister;
+  document.getElementById('auth-title').innerText = isRegister ? 'Register Account' : 'Member Sign In';
+  document.getElementById('field-name').classList.toggle('hidden', !isRegister);
+  document.getElementById('auth-btn').innerText = isRegister ? 'Register →' : 'Sign In →';
+  document.getElementById('auth-toggle').innerText = isRegister ? 'Already have an account? Sign in' : 'Need an account? Register here';
+}
+
+async function handleAuth(e) {
+  e.preventDefault();
+  const email = document.getElementById('auth-email').value;
+  const password = document.getElementById('auth-password').value;
+  const name = document.getElementById('auth-name').value;
+  const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
+  const body = isRegister ? { name, email, password } : { email, password };
+  try {
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Failed');
+    token = data.token; user = data.user;
+    localStorage.setItem('token', token); localStorage.setItem('user', JSON.stringify(user));
+    showToast(`Welcome, ${user.name}!`); updateNav(); location.hash = '#/sessions';
+  } catch (err) { showToast(err.message); }
+}
+
+function logout() {
+  localStorage.clear(); token = null; user = null;
+  clearInterval(pollTimer); updateNav(); location.hash = '#/auth';
+}
+
+function updateNav() {
+  const auth = !!token;
+  document.getElementById('nav-logout').classList.toggle('hidden', !auth);
+  document.getElementById('nav-mine').classList.toggle('hidden', !auth);
+  document.getElementById('nav-admin').classList.toggle('hidden', !(auth && user?.role === 'admin'));
+}
+
+async function loadSessions() {
+  if (!token) return;
+  const date = document.getElementById('filter-date').value;
+  try {
+    const res = await fetch(`/api/sessions?date=${date}`, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    document.getElementById('sessions-grid').innerHTML = (data.sessions || []).map(s => `
+      <div class="session-card">
+        <div>
+          <span class="badge ${s.seats_remaining > 0 ? 'badge-avail' : 'badge-full'}">${s.seats_remaining > 0 ? `${s.seats_remaining} MATS AVAILABLE` : 'SESSION FULL'}</span>
+          <h3 class="serif" style="color:var(--teal);margin-bottom:4px;">${s.date}</h3>
+          <p style="font-size:13px;color:var(--ink-soft);">${String(s.start_hour).padStart(2,'0')}:00 – ${String(s.start_hour+1).padStart(2,'0')}:00</p>
+          ${s.waitlist_count > 0 ? `<p style="font-size:12px;color:var(--saffron);font-weight:600;margin-top:4px;">Waitlist: ${s.waitlist_count}</p>` : ''}
+        </div>
+        <div style="margin-top:14px;">
+          ${s.seats_remaining > 0 ? `<button class="btn btn-primary" onclick="bookSession(${s.id})">Book Mat</button>` : `<button class="btn btn-saffron" onclick="joinWaitlist(${s.id})">Join Waitlist</button>`}
+        </div>
+      </div>
+    `).join('') || '<p style="color:var(--ink-soft);">No sessions scheduled.</p>';
+  } catch (err) { console.error(err); }
+}
+
+async function bookSession(id) {
+  try {
+    const res = await fetch(`/api/sessions/${id}/book`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Failed');
+    showToast(`Booked! Code: ${data.booking.code}`); loadSessions();
+  } catch (err) { showToast(err.message); }
+}
+
+async function joinWaitlist(id) {
+  try {
+    const res = await fetch(`/api/sessions/${id}/waitlist`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Failed');
+    showToast(`Waitlisted at position #${data.waitlist.position}`); loadSessions();
+  } catch (err) { showToast(err.message); }
+}
+
+async function loadMine() {
+  try {
+    const res = await fetch('/api/bookings/mine', { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    document.getElementById('mine-bookings').innerHTML = (data.bookings || []).map(b => `
+      <div class="session-card">
+        <div>
+          <span class="badge badge-avail">${b.status.toUpperCase()}</span>
+          <h3 class="serif" style="color:var(--teal);">${b.date} @ ${String(b.start_hour).padStart(2,'0')}:00</h3>
+          ${b.status === 'confirmed' ? `<div class="code-display">${b.code}</div>` : ''}
+        </div>
+        ${b.status === 'confirmed' ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="cancelBooking(${b.id})">Cancel</button>` : ''}
+      </div>
+    `).join('') || '<p style="color:var(--ink-soft);">No active bookings.</p>';
+
+    document.getElementById('mine-waitlists').innerHTML = (data.waitlists || []).map(w => `
+      <div class="session-card">
+        <h3 class="serif" style="color:var(--teal);">${w.date} @ ${String(w.start_hour).padStart(2,'0')}:00</h3>
+        <p style="margin-top:8px;">Queue Position: <strong style="color:var(--saffron);">#${w.position}</strong></p>
+      </div>
+    `).join('') || '<p style="color:var(--ink-soft);">Not on waitlist.</p>';
+  } catch (err) { console.error(err); }
+}
+
+async function cancelBooking(id) {
+  if (!confirm('Cancel booking? Waitlisted member will be auto-promoted.')) return;
+  try {
+    const res = await fetch(`/api/bookings/${id}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Failed');
+    showToast('Cancelled.'); loadMine();
+  } catch (err) { showToast(err.message); }
+}
+
+async function handleCheckin(e) {
+  e.preventDefault();
+  const code = document.getElementById('checkin-code').value.trim();
+  try {
+    const res = await fetch('/api/checkin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Invalid code');
+    showToast(`✓ Checked in: ${data.attendee.name}`);
+    document.getElementById('checkin-code').value = '';
+  } catch (err) { showToast(err.message); }
+}
+
+async function handleCreateSession(e) {
+  e.preventDefault();
+  const date = document.getElementById('new-date').value;
+  const start_hour = document.getElementById('new-hour').value;
+  try {
+    const res = await fetch('/api/sessions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ date, start_hour })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || 'Failed');
+    showToast('Session created!');
+    document.getElementById('new-date').value = '';
+  } catch (err) { showToast(err.message); }
+}
+
+function route() {
+  const hash = location.hash || '#/sessions';
+  ['auth', 'sessions', 'mine', 'admin'].forEach(v => document.getElementById(`view-${v}`).classList.add('hidden'));
+  ['nav-sessions', 'nav-mine', 'nav-admin'].forEach(n => document.getElementById(n)?.classList.remove('active'));
+
+  if (!token) { document.getElementById('view-auth').classList.remove('hidden'); return; }
+  clearInterval(pollTimer);
+  if (hash === '#/sessions') {
+    document.getElementById('view-sessions').classList.remove('hidden');
+    document.getElementById('nav-sessions')?.classList.add('active');
+    loadSessions(); pollTimer = setInterval(loadSessions, 5000);
+  } else if (hash === '#/mine') {
+    document.getElementById('view-mine').classList.remove('hidden');
+    document.getElementById('nav-mine')?.classList.add('active');
+    loadMine();
+  } else if (hash === '#/admin') {
+    if (user?.role !== 'admin') { location.hash = '#/sessions'; return; }
+    document.getElementById('view-admin').classList.remove('hidden');
+    document.getElementById('nav-admin')?.classList.add('active');
+  } else { location.hash = '#/sessions'; }
+}
+
+window.addEventListener('hashchange', route);
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('filter-date').value = new Date().toISOString().split('T')[0];
+  updateNav(); route();
+});
+</script>
+</body>
+</html>
