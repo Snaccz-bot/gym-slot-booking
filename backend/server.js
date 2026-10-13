@@ -125,7 +125,7 @@ app.post('/api/sessions', authenticate, requireAdmin, (req, res) => {
   if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Date must look like YYYY-MM-DD' } });
   }
-  if (isNaN(Date.parse(date))) {
+  const [y,m,d] = date.split("-").map(Number); const pd = new Date(Date.UTC(y, m-1, d)); if (pd.getUTCFullYear() !== y || pd.getUTCMonth() !== m-1 || pd.getUTCDate() !== d) return res.status(400).json({ error: { code: "INVALID_INPUT", message: "Invalid calendar date" } }); if (false) {
     return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Date is not a valid calendar date' } });
   }
   const h = Number(start_hour);
