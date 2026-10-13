@@ -6,10 +6,6 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('./db');
 
-const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'frontend')));
-
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is missing.');
@@ -17,6 +13,22 @@ if (!JWT_SECRET) {
 }
 
 const CAPACITY = 20;
+
+// Auto-seed if database is empty (Render cold-start persistence)
+function autoSeedIfEmpty() {
+  try {
+    const count = db.prepare("SELECT COUNT(*) as c FROM users").get().c;
+    if (count === 0) {
+      console.log("Empty database detected. Running initial seed...");
+      require("./seed");
+    }
+  } catch (e) {}
+}
+autoSeedIfEmpty();
+
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
 function generateCode() {
   const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -125,13 +137,23 @@ app.post('/api/sessions', authenticate, requireAdmin, (req, res) => {
   if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Date must look like YYYY-MM-DD' } });
   }
-  const [y,m,d] = date.split("-").map(Number); const pd = new Date(Date.UTC(y, m-1, d)); if (pd.getUTCFullYear() !== y || pd.getUTCMonth() !== m-1 || pd.getUTCDate() !== d) return res.status(400).json({ error: { code: "INVALID_INPUT", message: "Invalid calendar date" } }); if (false) {
+
+  // Strict calendar date validation (rejects invalid dates like 2026-02-31)
+  const [y, m, d] = date.split('-').map(Number);
+  const parsedDate = new Date(Date.UTC(y, m - 1, d));
+  if (
+    parsedDate.getUTCFullYear() !== y ||
+    parsedDate.getUTCMonth() !== m - 1 ||
+    parsedDate.getUTCDate() !== d
+  ) {
     return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Date is not a valid calendar date' } });
   }
+
   const h = Number(start_hour);
   if (!Number.isInteger(h) || h < 0 || h > 23) {
     return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Start hour must be an integer between 0 and 23' } });
   }
+
   try {
     const info = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, ?, ?)').run(date, h, CAPACITY);
     res.status(201).json({ session: { id: info.lastInsertRowid, date, start_hour: h, capacity: CAPACITY } });
@@ -250,7 +272,7 @@ app.delete('/api/sessions/:id/waitlist', authenticate, (req, res) => {
   res.json({ ok: true, message: 'Removed from waitlist' });
 });
 
-// ----------------- CANCELLATION -----------------
+// ----------------- CANCELLATION & AUTO-PROMOTE -----------------
 app.post('/api/bookings/:id/cancel', authenticate, (req, res) => {
   const bookingId = Number(req.params.id);
   const userId = req.user.id;
@@ -274,12 +296,17 @@ app.post('/api/bookings/:id/cancel', authenticate, (req, res) => {
 
     db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(bookingId);
 
-    if (new Date() < startTime) {
-      const nextWait = db.prepare('SELECT * FROM waitlist WHERE session_id = ? ORDER BY id ASC LIMIT 1').get(booking.session_id);
-      if (nextWait) {
-        db.prepare('DELETE FROM waitlist WHERE id = ?').run(nextWait.id);
-        const code = generateCode();
-        db.prepare("INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, 'confirmed', ?)").run(booking.session_id, nextWait.user_id, code);
+    const nextWait = db.prepare('SELECT * FROM waitlist WHERE session_id = ? ORDER BY id ASC LIMIT 1').get(booking.session_id);
+    if (nextWait) {
+      db.prepare('DELETE FROM waitlist WHERE id = ?').run(nextWait.id);
+      for (let attempts = 0; attempts < 5; attempts++) {
+        const promoCode = generateCode();
+        try {
+          db.prepare("INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, 'confirmed', ?)").run(booking.session_id, nextWait.user_id, promoCode);
+          break;
+        } catch (err) {
+          if (!err.message.includes('UNIQUE constraint failed')) throw err;
+        }
       }
     }
 

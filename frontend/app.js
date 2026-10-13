@@ -24,12 +24,25 @@ function handle401(res) {
   return false;
 }
 
+function choosePortal(role) {
+  isRegister = false;
+  const isAdm = (role === 'admin');
+  document.getElementById('auth-title').innerText = isAdm ? 'Staff Station Sign In' : 'Member Sign In';
+  document.getElementById('auth-lede').innerText = isAdm ? 'Enter gym staff administrator credentials.' : 'Sign in to reserve mats and view check-in tokens.';
+  document.getElementById('auth-email').value = isAdm ? 'admin@gym.com' : '';
+  document.getElementById('auth-password').value = isAdm ? 'admin123' : '';
+  document.getElementById('auth-toggle').classList.toggle('hidden', isAdm);
+  document.getElementById('field-name').classList.add('hidden');
+  document.getElementById('auth-btn').innerText = isAdm ? 'Staff Sign In →' : 'Sign In →';
+  location.hash = '#/auth';
+}
+
 function toggleAuth(e) {
   e.preventDefault();
   isRegister = !isRegister;
-  document.getElementById('auth-title').innerText = isRegister ? 'Register Account' : 'Member Sign In';
+  document.getElementById('auth-title').innerText = isRegister ? 'Register Member Account' : 'Member Sign In';
   document.getElementById('field-name').classList.toggle('hidden', !isRegister);
-  document.getElementById('auth-btn').innerText = isRegister ? 'Register →' : 'Sign In →';
+  document.getElementById('auth-btn').innerText = isRegister ? 'Create Account →' : 'Sign In →';
   document.getElementById('auth-toggle').innerText = isRegister ? 'Already have an account? Sign in' : 'Need an account? Register here';
 }
 
@@ -40,7 +53,6 @@ async function handleAuth(e) {
   const password = document.getElementById('auth-password').value;
   const name = document.getElementById('auth-name').value.trim();
 
-  // Inline Validation
   let hasErr = false;
   document.getElementById('err-email').innerText = '';
   document.getElementById('err-password').innerText = '';
@@ -72,7 +84,7 @@ async function handleAuth(e) {
     localStorage.setItem('user', JSON.stringify(user));
     showToast(`Welcome, ${user.name}!`);
     updateNav();
-    location.hash = '#/sessions';
+    location.hash = (user.role === 'admin') ? '#/admin' : '#/sessions';
   } catch (err) {
     showToast(err.message, true);
   } finally {
@@ -85,37 +97,55 @@ function logout() {
   token = null; user = null;
   clearInterval(pollTimer);
   updateNav();
-  location.hash = '#/auth';
+  location.hash = '#/landing';
 }
 
 function updateNav() {
   const auth = !!token;
   document.getElementById('nav-logout').classList.toggle('hidden', !auth);
-  document.getElementById('nav-mine').classList.toggle('hidden', !auth);
+  document.getElementById('nav-mine').classList.toggle('hidden', !(auth && user?.role === 'member'));
   document.getElementById('nav-admin').classList.toggle('hidden', !(auth && user?.role === 'admin'));
+  document.getElementById('nav-sessions').classList.toggle('hidden', !auth);
+}
+
+function clearDateFilter() {
+  document.getElementById('filter-date').value = '';
+  loadSessions();
 }
 
 async function loadSessions() {
   if (!token) return;
-  const date = document.getElementById('filter-date').value;
+  const dateInput = document.getElementById('filter-date');
+  const date = dateInput ? dateInput.value : '';
+  const url = date ? `/api/sessions?date=${encodeURIComponent(date)}` : '/api/sessions';
   const statusEl = document.getElementById('sessions-status');
+  const grid = document.getElementById('sessions-grid');
+
+  if (statusEl) statusEl.innerText = '';
+  if (grid && !grid.children.length) {
+    grid.innerHTML = '<p style="color:var(--ink-soft);padding:20px;">Loading sessions...</p>';
+  }
+
   try {
-    const res = await fetch(`/api/sessions?date=${date}`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (handle401(res)) return;
+    if (!res.ok) throw new Error('Failed to load sessions');
     const data = await res.json();
-    const grid = document.getElementById('sessions-grid');
 
     if (!data.sessions || data.sessions.length === 0) {
-      grid.innerHTML = '<p style="color:var(--ink-soft);padding:20px;">No sessions found for this date.</p>';
+      grid.innerHTML = '<p style="color:var(--ink-soft);padding:20px;">No sessions found for this filter.</p>';
       return;
     }
 
-    // Preserve focused element to avoid input/button jump
     const activeId = document.activeElement ? document.activeElement.id : null;
 
     grid.innerHTML = data.sessions.map(s => {
       let actionBtn = '';
-      if (s.has_started) {
+      
+      // ADMIN: Only manages, NEVER books
+      if (user?.role === 'admin') {
+        actionBtn = `<span class="badge" style="background:var(--paper-dim);color:var(--ink-soft);font-size:12px;padding:6px 12px;">Staff View Only</span>`;
+      } else if (s.has_started) {
         actionBtn = `<button class="btn" disabled style="background:var(--line);color:var(--ink-soft);">Session Started</button>`;
       } else if (s.user_booked) {
         actionBtn = `<button class="btn" disabled style="background:rgba(110,143,107,0.2);color:var(--sage);font-weight:bold;">✓ You are Booked</button>`;
@@ -135,7 +165,7 @@ async function loadSessions() {
             </span>
             <h3 class="serif" style="color:var(--teal);margin-bottom:4px;">${escapeHtml(s.date)}</h3>
             <p style="font-size:13px;color:var(--ink-soft);">${String(s.start_hour).padStart(2,'0')}:00 – ${String(s.start_hour+1).padStart(2,'0')}:00</p>
-            ${s.waitlist_count > 0 ? `<p style="font-size:12px;color:var(--saffron);font-weight:600;margin-top:4px;">Waitlist: ${s.waitlist_count}</p>` : ''}
+            ${s.waitlist_count > 0 ? `<p style="font-size:12px;color:var(--saffron);font-weight:600;margin-top:4px;">Waitlist: ${s.waitlist_count} members</p>` : ''}
           </div>
           <div style="margin-top:14px;">${actionBtn}</div>
         </div>
@@ -147,11 +177,10 @@ async function loadSessions() {
       if (el) el.focus();
     }
   } catch (err) {
-    statusEl.innerHTML = `<span style="color:var(--brick);">Failed to load sessions. <button onclick="loadSessions()">Retry</button></span>`;
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--brick);">${escapeHtml(err.message)} <button onclick="loadSessions()">Retry</button></span>`;
   }
 }
 
-// Optimistic instant booking with rollback
 async function bookSession(id, currentSeats, btn) {
   btn.disabled = true;
   const badge = document.getElementById(`badge-seats-${id}`);
@@ -169,7 +198,7 @@ async function bookSession(id, currentSeats, btn) {
     showToast(`Booked! Check-in code: ${data.booking.code}`);
     loadSessions();
   } catch (err) {
-    if (badge) badge.innerText = origText; // Rollback
+    if (badge) badge.innerText = origText;
     showToast(err.message, true);
     btn.disabled = false;
   }
@@ -203,7 +232,7 @@ async function leaveWaitlist(id, btn) {
     if (handle401(res)) return;
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || 'Failed to leave waitlist');
-    showToast('Left waitlist');
+    showToast('Removed from waitlist');
     loadSessions();
   } catch (err) {
     showToast(err.message, true);
@@ -289,6 +318,7 @@ async function handleCheckin(e) {
     if (!res.ok) throw new Error(data.error?.message || 'Check-in failed');
     resBox.innerHTML = `<div style="padding:10px;background:#ebfbee;border:1px solid #b2f2bb;border-radius:8px;color:var(--teal);">✓ <strong>Checked In:</strong> ${escapeHtml(data.attendee.name)} (${escapeHtml(data.attendee.email)}) – ${escapeHtml(data.attendee.session)}</div>`;
     document.getElementById('checkin-code').value = '';
+    loadAdminSessionBookings();
   } catch (err) {
     resBox.innerHTML = `<div style="padding:10px;background:#fff5f5;border:1px solid #ffc9c9;border-radius:8px;color:var(--brick);">✗ ${escapeHtml(err.message)}</div>`;
   } finally {
@@ -327,7 +357,7 @@ async function loadAdminSessionDropdown() {
     const res = await fetch('/api/sessions', { headers: { Authorization: `Bearer ${token}` } });
     const data = await res.json();
     sel.innerHTML = '<option value="">Select a session to view attendees</option>' + 
-      (data.sessions || []).map(s => `<option value="${s.id}">${escapeHtml(s.date)} @ ${String(s.start_hour).padStart(2,'0')}:00 (${s.booked_count}/20)</option>`).join('');
+      (data.sessions || []).map(s => `<option value="${s.id}">${escapeHtml(s.date)} @ ${String(s.start_hour).padStart(2,'0')}:00 (${s.booked_count}/20 booked)</option>`).join('');
   } catch (err) {}
 }
 
@@ -368,40 +398,42 @@ async function loadAdminSessionBookings() {
 }
 
 function route() {
-  const hash = location.hash || '#/sessions';
-  ['auth', 'sessions', 'mine', 'admin'].forEach(v => document.getElementById(`view-${v}`).classList.add('hidden'));
-  ['nav-sessions', 'nav-mine', 'nav-admin'].forEach(n => document.getElementById(n)?.classList.remove('active'));
+  const hash = location.hash || '#/landing';
+  ['landing', 'auth', 'sessions', 'mine', 'admin'].forEach(v => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) el.classList.add('hidden');
+  });
 
   if (!token) {
-    document.getElementById('view-auth').classList.remove('hidden');
+    if (hash === '#/auth') {
+      document.getElementById('view-auth').classList.remove('hidden');
+    } else {
+      document.getElementById('view-landing').classList.remove('hidden');
+    }
     return;
   }
 
   clearInterval(pollTimer);
   if (hash === '#/sessions') {
     document.getElementById('view-sessions').classList.remove('hidden');
-    document.getElementById('nav-sessions')?.classList.add('active');
     loadSessions();
     pollTimer = setInterval(loadSessions, 5000);
   } else if (hash === '#/mine') {
+    if (user?.role === 'admin') { location.hash = '#/admin'; return; }
     document.getElementById('view-mine').classList.remove('hidden');
-    document.getElementById('nav-mine')?.classList.add('active');
     loadMine();
   } else if (hash === '#/admin') {
     if (user?.role !== 'admin') { location.hash = '#/sessions'; return; }
     document.getElementById('view-admin').classList.remove('hidden');
-    document.getElementById('nav-admin')?.classList.add('active');
     loadAdminSessionDropdown();
   } else {
-    location.hash = '#/sessions';
+    location.hash = (user?.role === 'admin') ? '#/admin' : '#/sessions';
   }
 }
 
 window.addEventListener('hashchange', route);
 window.addEventListener('DOMContentLoaded', () => {
-  const dt = new Date();
-  const y = dt.getFullYear(), m = String(dt.getMonth()+1).padStart(2,'0'), d = String(dt.getDate()).padStart(2,'0');
-  document.getElementById('filter-date').value = `${y}-${m}-${d}`;
+  document.getElementById('filter-date').value = '';
   updateNav();
   route();
 });

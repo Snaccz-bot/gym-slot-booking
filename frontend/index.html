@@ -8,7 +8,7 @@
 </head>
 <body>
 <div class="topbar">
-  <a href="#/sessions" class="brand" tabindex="0">
+  <a href="#/landing" class="brand" tabindex="0">
     <div class="brand-mark">IM</div>
     <div>
       <div class="brand-name serif">IronMat Gym</div>
@@ -16,8 +16,8 @@
     </div>
   </a>
   <nav id="nav">
-    <a href="#/sessions" id="nav-sessions">Sessions</a>
-    <a href="#/mine" id="nav-mine">My Bookings</a>
+    <a href="#/sessions" id="nav-sessions" class="hidden">Sessions</a>
+    <a href="#/mine" id="nav-mine" class="hidden">My Bookings</a>
     <a href="#/admin" id="nav-admin" class="hidden">Staff Station</a>
     <button id="nav-logout" class="hidden" onclick="logout()">Sign Out</button>
   </nav>
@@ -26,14 +26,37 @@
 <main class="container">
   <div id="toast" class="toast" role="alert" aria-live="polite"></div>
 
-  <!-- AUTH -->
-  <section id="view-auth" class="card" style="max-width: 420px; margin: 40px auto;">
+  <!-- VIEW: LANDING (MediKiosk Style Two Portal Choice) -->
+  <section id="view-landing" class="card" style="max-width: 600px; margin: 30px auto; text-align: center;">
+    <div style="font-size: 11.5px; text-transform: uppercase; letter-spacing: 1px; color: var(--saffron); font-weight: 700; margin-bottom: 6px;">20-Mat Capacity & Door Check-In</div>
+    <h1 class="serif" style="font-size: 28px; color: var(--teal); margin-bottom: 8px;">Welcome to IronMat Gym</h1>
+    <p style="font-size: 14px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 24px;">Please choose your portal to book mats or access the door check-in station.</p>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      <div class="session-card" style="text-align: left; cursor: pointer; border-width: 2px;" onclick="choosePortal('member')">
+        <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 12px;">👤</div>
+        <h3 class="serif" style="color: var(--teal); margin-bottom: 6px; font-size: 18px;">Member Portal</h3>
+        <p style="font-size: 12.5px; color: var(--ink-soft); line-height: 1.45;">Browse hourly sessions, reserve your mat, and view your check-in code.</p>
+        <div style="font-size: 13px; font-weight: 700; color: var(--teal); margin-top: 16px;">Member Access →</div>
+      </div>
+
+      <div class="session-card" style="text-align: left; cursor: pointer; border-width: 2px;" onclick="choosePortal('admin')">
+        <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--teal-mid); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-bottom: 12px;">🛡️</div>
+        <h3 class="serif" style="color: var(--teal); margin-bottom: 6px; font-size: 18px;">Staff Station</h3>
+        <p style="font-size: 12.5px; color: var(--ink-soft); line-height: 1.45;">Door attendance check-in, schedule sessions, and view attendee lists.</p>
+        <div style="font-size: 13px; font-weight: 700; color: var(--saffron); margin-top: 16px;">Staff Sign In →</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VIEW: AUTH -->
+  <section id="view-auth" class="card hidden" style="max-width: 420px; margin: 30px auto;">
     <h2 class="serif" id="auth-title" style="color:var(--teal);margin-bottom:6px;">Member Sign In</h2>
-    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;">Access sessions and view check-in tokens.</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;" id="auth-lede">Sign in to book mats and view check-in tokens.</p>
     <form onsubmit="handleAuth(event)">
       <div class="field hidden" id="field-name">
         <label for="auth-name">Full Name</label>
-        <input type="text" id="auth-name" placeholder="Adit Gupta">
+        <input type="text" id="auth-name" placeholder="John Doe">
         <div class="field-error" id="err-name"></div>
       </div>
       <div class="field">
@@ -51,9 +74,12 @@
     <div style="text-align: center; margin-top: 14px;">
       <a href="#" id="auth-toggle" style="font-size: 12.5px; color: var(--ink-soft);" onclick="toggleAuth(event)">Need an account? Register here</a>
     </div>
+    <div style="text-align: center; margin-top: 10px;">
+      <a href="#/landing" style="font-size: 12px; color: var(--muted); text-decoration: none;">← Back to portal choice</a>
+    </div>
   </section>
 
-  <!-- SESSIONS -->
+  <!-- VIEW: SESSIONS -->
   <section id="view-sessions" class="hidden">
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
       <div>
@@ -61,15 +87,16 @@
         <p style="font-size:13px;color:var(--ink-soft);">20 Mats capacity per hour. Auto-promoted waitlist.</p>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <label for="filter-date" style="font-size:13px;font-weight:600;">Date:</label>
+        <label for="filter-date" style="font-size:13px;font-weight:600;">Filter Date:</label>
         <input type="date" id="filter-date" onchange="loadSessions()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--line);">
+        <button onclick="clearDateFilter()" style="padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 12px; cursor: pointer; background: var(--paper);">All Dates</button>
       </div>
     </div>
     <div id="sessions-status" style="margin-bottom:12px;font-size:13px;color:var(--ink-soft);"></div>
     <div id="sessions-grid" class="grid"></div>
   </section>
 
-  <!-- MY BOOKINGS -->
+  <!-- VIEW: MY BOOKINGS -->
   <section id="view-mine" class="hidden">
     <h2 class="serif" style="color:var(--teal);margin-bottom:12px;">My Confirmed Bookings</h2>
     <div id="mine-bookings" class="grid" style="margin-bottom: 24px;"></div>
@@ -79,14 +106,13 @@
     <div id="mine-history" class="grid"></div>
   </section>
 
-  <!-- ADMIN -->
+  <!-- VIEW: ADMIN -->
   <section id="view-admin" class="hidden">
     <div class="card">
       <h2 class="serif" style="color:var(--teal);margin-bottom:6px;">Door Check-In</h2>
       <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Valid only during session hour for confirmed bookings.</p>
       <form onsubmit="handleCheckin(event)" style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <label for="checkin-code" class="hidden">Check-in Code</label>
-        <input type="text" id="checkin-code" maxlength="6" placeholder="e.g. 7XKP2Q" required style="letter-spacing: 3px; font-size: 18px; text-transform: uppercase; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); flex: 1; min-width: 160px;">
+        <input type="text" id="checkin-code" aria-label="6-character check-in code" maxlength="6" placeholder="e.g. 7XKP2Q" required style="letter-spacing: 3px; font-size: 18px; text-transform: uppercase; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); flex: 1; min-width: 160px;">
         <button type="submit" id="btn-checkin" class="btn btn-primary" style="width: auto; padding: 0 24px;">Verify & Check In</button>
       </form>
       <div id="checkin-result" style="margin-top:12px;"></div>
