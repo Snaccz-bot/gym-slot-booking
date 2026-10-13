@@ -29,7 +29,8 @@ function choosePortal(role) {
   const isAdm = (role === 'admin');
   document.getElementById('auth-title').innerText = isAdm ? 'Staff Station Sign In' : 'Member Sign In';
   document.getElementById('auth-lede').innerText = isAdm ? 'Enter gym staff administrator credentials.' : 'Sign in to reserve mats and view check-in tokens.';
-  document.getElementById('auth-email').value = isAdm ? 'admin@gym.com' : '';
+  document.getElementById('auth-email').value = '';
+  document.getElementById('auth-password').value = '';
   document.getElementById('auth-password').value = isAdm ? 'admin123' : '';
   document.getElementById('auth-toggle').classList.toggle('hidden', isAdm);
   document.getElementById('field-name').classList.add('hidden');
