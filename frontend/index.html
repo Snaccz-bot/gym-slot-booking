@@ -8,11 +8,14 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="brand" onclick="location.hash='#/sessions'">
+  <a href="#/sessions" class="brand" tabindex="0">
     <div class="brand-mark">IM</div>
-    <div><div class="brand-name serif">IronMat Gym</div><div style="font-size:11px;color:var(--ink-soft);">20-Mat Session Booking</div></div>
-  </div>
-  <nav>
+    <div>
+      <div class="brand-name serif">IronMat Gym</div>
+      <div style="font-size:11px;color:var(--ink-soft);">20-Mat Session Booking</div>
+    </div>
+  </a>
+  <nav id="nav">
     <a href="#/sessions" id="nav-sessions">Sessions</a>
     <a href="#/mine" id="nav-mine">My Bookings</a>
     <a href="#/admin" id="nav-admin" class="hidden">Staff Station</a>
@@ -21,53 +24,105 @@
 </div>
 
 <main class="container">
-  <section id="view-auth" class="card" style="max-width: 400px; margin: 40px auto;">
-    <h2 class="serif" id="auth-title" style="color:var(--teal);margin-bottom:8px;">Member Sign In</h2>
+  <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+  <!-- AUTH -->
+  <section id="view-auth" class="card" style="max-width: 420px; margin: 40px auto;">
+    <h2 class="serif" id="auth-title" style="color:var(--teal);margin-bottom:6px;">Member Sign In</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;">Access sessions and view check-in tokens.</p>
     <form onsubmit="handleAuth(event)">
-      <div class="field hidden" id="field-name"><label>Full Name</label><input type="text" id="auth-name" placeholder="Adit Gupta"></div>
-      <div class="field"><label>Email Address</label><input type="email" id="auth-email" required placeholder="alice@test.com"></div>
-      <div class="field"><label>Password</label><input type="password" id="auth-password" required placeholder="••••••••"></div>
+      <div class="field hidden" id="field-name">
+        <label for="auth-name">Full Name</label>
+        <input type="text" id="auth-name" placeholder="Adit Gupta">
+        <div class="field-error" id="err-name"></div>
+      </div>
+      <div class="field">
+        <label for="auth-email">Email Address</label>
+        <input type="email" id="auth-email" required placeholder="alice@test.com">
+        <div class="field-error" id="err-email"></div>
+      </div>
+      <div class="field">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" required placeholder="••••••••">
+        <div class="field-error" id="err-password"></div>
+      </div>
       <button type="submit" id="auth-btn" class="btn btn-primary">Sign In →</button>
     </form>
-    <div style="text-align: center; margin-top: 14px;"><a href="#" id="auth-toggle" style="font-size: 12px; color: var(--ink-soft);" onclick="toggleAuth(event)">Need an account? Register here</a></div>
+    <div style="text-align: center; margin-top: 14px;">
+      <a href="#" id="auth-toggle" style="font-size: 12.5px; color: var(--ink-soft);" onclick="toggleAuth(event)">Need an account? Register here</a>
+    </div>
   </section>
 
+  <!-- SESSIONS -->
   <section id="view-sessions" class="hidden">
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-      <div><h2 class="serif" style="color:var(--teal);">Available Sessions</h2><p style="font-size:13px;color:var(--ink-soft);">20 Mats capacity per hour. Auto-promoted waitlist.</p></div>
-      <div style="display:flex;align-items:center;gap:8px;"><label style="font-size:13px;font-weight:600;">Date:</label><input type="date" id="filter-date" onchange="loadSessions()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--line);"></div>
+      <div>
+        <h2 class="serif" style="color:var(--teal);">Available Sessions</h2>
+        <p style="font-size:13px;color:var(--ink-soft);">20 Mats capacity per hour. Auto-promoted waitlist.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label for="filter-date" style="font-size:13px;font-weight:600;">Date:</label>
+        <input type="date" id="filter-date" onchange="loadSessions()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--line);">
+      </div>
     </div>
+    <div id="sessions-status" style="margin-bottom:12px;font-size:13px;color:var(--ink-soft);"></div>
     <div id="sessions-grid" class="grid"></div>
   </section>
 
+  <!-- MY BOOKINGS -->
   <section id="view-mine" class="hidden">
     <h2 class="serif" style="color:var(--teal);margin-bottom:12px;">My Confirmed Bookings</h2>
     <div id="mine-bookings" class="grid" style="margin-bottom: 24px;"></div>
     <h2 class="serif" style="color:var(--teal);margin-bottom:12px;">Waitlist Queue</h2>
-    <div id="mine-waitlists" class="grid"></div>
+    <div id="mine-waitlists" class="grid" style="margin-bottom: 24px;"></div>
+    <h2 class="serif" style="color:var(--ink-soft);font-size:18px;margin-bottom:12px;">Booking History</h2>
+    <div id="mine-history" class="grid"></div>
   </section>
 
+  <!-- ADMIN -->
   <section id="view-admin" class="hidden">
     <div class="card">
-      <h2 class="serif" style="color:var(--teal);margin-bottom:8px;">Door Check-In</h2>
-      <form onsubmit="handleCheckin(event)" style="display: flex; gap: 10px;">
-        <input type="text" id="checkin-code" maxlength="6" placeholder="e.g. 7XKP2Q" required style="letter-spacing: 3px; font-size: 18px; text-transform: uppercase; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); flex: 1;">
-        <button type="submit" class="btn btn-primary" style="width: auto; padding: 0 20px;">Verify & Check In</button>
+      <h2 class="serif" style="color:var(--teal);margin-bottom:6px;">Door Check-In</h2>
+      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Valid only during session hour for confirmed bookings.</p>
+      <form onsubmit="handleCheckin(event)" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <label for="checkin-code" class="hidden">Check-in Code</label>
+        <input type="text" id="checkin-code" maxlength="6" placeholder="e.g. 7XKP2Q" required style="letter-spacing: 3px; font-size: 18px; text-transform: uppercase; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line); flex: 1; min-width: 160px;">
+        <button type="submit" id="btn-checkin" class="btn btn-primary" style="width: auto; padding: 0 24px;">Verify & Check In</button>
+      </form>
+      <div id="checkin-result" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="serif" style="color:var(--teal);margin-bottom:6px;">Create Session</h2>
+      <form onsubmit="handleCreateSession(event)" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div style="flex:1;min-width:140px;">
+          <label for="new-date" style="font-size:12px;font-weight:600;">Date</label>
+          <input type="date" id="new-date" required style="padding:10px;border-radius:8px;border:1px solid var(--line);">
+        </div>
+        <div style="flex:1;min-width:140px;">
+          <label for="new-hour" style="font-size:12px;font-weight:600;">Start Time</label>
+          <select id="new-hour" required style="padding:10px;border-radius:8px;border:1px solid var(--line);">
+            <option value="6">06:00 AM</option><option value="7">07:00 AM</option><option value="8">08:00 AM</option>
+            <option value="9">09:00 AM</option><option value="10">10:00 AM</option><option value="11">11:00 AM</option>
+            <option value="12">12:00 PM</option><option value="13">01:00 PM</option><option value="14">02:00 PM</option>
+            <option value="15">03:00 PM</option><option value="16">04:00 PM</option><option value="17">05:00 PM</option>
+            <option value="18">06:00 PM</option><option value="19">07:00 PM</option><option value="20">08:00 PM</option>
+          </select>
+        </div>
+        <button type="submit" id="btn-create-session" class="btn btn-primary" style="width: auto; align-self: flex-end; padding: 11px 22px;">Create</button>
       </form>
     </div>
+
     <div class="card">
-      <h2 class="serif" style="color:var(--teal);margin-bottom:8px;">Create Session</h2>
-      <form onsubmit="handleCreateSession(event)" style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="date" id="new-date" required style="flex:1;min-width:140px;padding:10px;border-radius:8px;border:1px solid var(--line);">
-        <select id="new-hour" required style="flex:1;min-width:120px;padding:10px;border-radius:8px;border:1px solid var(--line);">
-          <option value="6">06:00 AM</option><option value="7">07:00 AM</option><option value="8">08:00 AM</option><option value="9">09:00 AM</option><option value="17">05:00 PM</option><option value="18">06:00 PM</option>
-        </select>
-        <button type="submit" class="btn btn-primary" style="width: auto; padding: 0 20px;">Create</button>
-      </form>
+      <h2 class="serif" style="color:var(--teal);margin-bottom:6px;">View Session Bookings</h2>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+        <label for="admin-session-select" style="font-size:13px;font-weight:600;">Choose Session:</label>
+        <select id="admin-session-select" onchange="loadAdminSessionBookings()" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);"></select>
+      </div>
+      <div id="admin-bookings-table"></div>
     </div>
   </section>
 </main>
-<div class="toast" id="toast"></div>
 <script src="/app.js"></script>
 </body>
 </html>

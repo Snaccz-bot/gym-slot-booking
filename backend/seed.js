@@ -1,43 +1,67 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const db = require('./db');
 
-console.log('Seeding IronMat Gym database...');
+function formatLocalDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function generateCode() {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let c = '';
+  for (let i = 0; i < 6; i++) c += chars.charAt(crypto.randomInt(0, chars.length));
+  return c;
+}
+
+console.log('Seeding IronMat Gym database with clean future test data...');
 db.exec('DELETE FROM waitlist; DELETE FROM bookings; DELETE FROM sessions; DELETE FROM users;');
 
 const adminHash = bcrypt.hashSync('admin123', 10);
-db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
-  .run('Gym Staff Admin', 'admin@gym.com', adminHash, 'admin');
+db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')")
+  .run('Gym Staff Admin', 'admin@gym.com', adminHash);
 
 const memberHash = bcrypt.hashSync('member123', 10);
-const alice = db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
-  .run('Alice Smith', 'alice@test.com', memberHash, 'member');
-const bob = db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
-  .run('Bob Jones', 'bob@test.com', memberHash, 'member');
+const alice = db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'member')")
+  .run('Alice Smith', 'alice@test.com', memberHash);
+const bob = db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'member')")
+  .run('Bob Jones', 'bob@test.com', memberHash);
 
 const dummyIds = [];
 for (let i = 1; i <= 20; i++) {
-  const u = db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)')
-    .run(`Member ${i}`, `user${i}@test.com`, memberHash, 'member');
+  const u = db.prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'member')")
+    .run(`Member ${i}`, `user${i}@test.com`, memberHash);
   dummyIds.push(u.lastInsertRowid);
 }
 
-const today = new Date().toISOString().split('T')[0];
-const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+const now = new Date();
+const today = formatLocalDate(now);
+const tomorrow = formatLocalDate(new Date(now.getTime() + 86400000));
+const dayAfter = formatLocalDate(new Date(now.getTime() + 86400000 * 2));
 
-const s1 = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, ?, ?)').run(today, 9, 20);
-const s2 = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, ?, ?)').run(today, 11, 20);
-const sFull = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, ?, ?)').run(today, 17, 20);
-const s4 = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, ?, ?)').run(tomorrow, 10, 20);
+// 1. Session right now (for live check-in test)
+const currentHour = now.getHours();
+const sCurrent = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, ?, 20)').run(today, currentHour);
+db.prepare("INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, 'confirmed', 'NOW123')")
+  .run(sCurrent.lastInsertRowid, alice.lastInsertRowid);
 
-dummyIds.forEach((uid, idx) => {
-  const code = 'SEAT' + String(idx + 1).padStart(2, '0');
-  db.prepare('INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, ?, ?)')
-    .run(sFull.lastInsertRowid, uid, 'confirmed', code);
+// 2. Future Sessions tomorrow
+const s1 = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, 9, 20)').run(tomorrow);
+const sFull = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, 17, 20)').run(tomorrow); // 5 PM Full
+const s3 = db.prepare('INSERT INTO sessions (date, start_hour, capacity) VALUES (?, 10, 20)').run(dayAfter);
+
+// Fill sFull with 20 distinct random codes
+dummyIds.forEach(uid => {
+  db.prepare("INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, 'confirmed', ?)")
+    .run(sFull.lastInsertRowid, uid, generateCode());
 });
 
-db.prepare('INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, ?, ?)')
-  .run(s1.lastInsertRowid, alice.lastInsertRowid, 'confirmed', '7XKP2Q');
+// Alice pre-booked into tomorrow 9 AM session
+db.prepare("INSERT INTO bookings (session_id, user_id, status, code) VALUES (?, ?, 'confirmed', '7XKP2Q')")
+  .run(s1.lastInsertRowid, alice.lastInsertRowid);
 
 console.log('✓ Seed completed successfully!');
-console.log('Admin: admin@gym.com / admin123');
-console.log('Member: alice@test.com / member123');
+console.log('Live Check-in Test Code (valid right now): NOW123');
+console.log('Tomorrow Test Code: 7XKP2Q');
